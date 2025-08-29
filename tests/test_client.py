@@ -1,3 +1,4 @@
+import errno
 import socket
 import ssl
 import pytest
@@ -821,3 +822,23 @@ def test_vm_specific_verification_in_init(mock_socket, mocker):
             activation_type=None,
             vm_specific=-1,
         )
+
+
+@pytest.mark.parametrize(
+    "err_number, exc",
+    ((errno.ENOTCONN, False), (errno.ENOTSOCK, False), (errno.ENAMETOOLONG, True))
+)
+def test_resend_reactivate_os_error(err_number, exc, mock_socket, mocker):
+    request_activation_spy = mocker.spy(DoIPClient, "request_activation")
+    reconnect_spy = mocker.spy(DoIPClient, "reconnect")
+    sut = DoIPClient(test_ip, test_logical_address, auto_reconnect_tcp=True)
+    mock_socket.rx_queue.append(OSError(err_number, 'Error message', None, err_number, None))
+    mock_socket.rx_queue.append(successful_activation_response)
+    mock_socket.rx_queue.append(diagnostic_positive_response)
+    if exc:
+        with pytest.raises(OSError):
+            sut.send_diagnostic(bytearray([0, 1, 2]))
+    else:
+        assert None == sut.send_diagnostic(bytearray([0, 1, 2]))
+        assert request_activation_spy.call_count == 2
+        assert reconnect_spy.call_count == 1

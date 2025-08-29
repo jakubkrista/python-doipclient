@@ -1,3 +1,4 @@
+import errno
 import logging
 import ipaddress
 import socket
@@ -470,11 +471,20 @@ class DoIPClient:
                 self._tcp_sock.settimeout(0)
         except (BlockingIOError, socket.timeout, ssl.SSLError):
             pass
-        except (ConnectionResetError, BrokenPipeError):
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
             logger.debug("TCP Connection broken, attempting to reset")
             self._tcp_close_detected = True
+        except OSError as e:
+            if e.errno == errno.ENOTCONN or e.errno == errno.ENOTSOCK:
+                logger.debug("TCP socket no longer available, attempting to reset")
+                self._tcp_close_detected = True
+            else:
+                # Re-raise exception
+                raise e
         finally:
-            self._tcp_sock.settimeout(original_timeout)
+            # The timeout will be set in the reconnect method anyway
+            if not self._tcp_close_detected:
+                self._tcp_sock.settimeout(original_timeout)
 
     def send_doip(
         self,
