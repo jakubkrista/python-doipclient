@@ -475,7 +475,7 @@ class DoIPClient:
             logger.debug("TCP Connection broken, attempting to reset")
             self._tcp_close_detected = True
         except OSError as e:
-            if e.errno == errno.ENOTCONN or e.errno == errno.ENOTSOCK:
+            if e.errno == errno.ENOTCONN or e.errno == errno.ENOTSOCK or e.errno == errno.WSAECONNRESET:
                 logger.debug("TCP socket no longer available, attempting to reset")
                 self._tcp_close_detected = True
             else:
